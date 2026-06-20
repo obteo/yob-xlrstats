@@ -4,35 +4,38 @@ ENV DEBIAN_FRONTEND=noninteractive
 ENV TZ=UTC
 
 # -------------------------
-# fix repo (18.04 EOL safe mode)
+# FORCE stable old-releases repo (clean override)
 # -------------------------
-RUN sed -i 's|archive.ubuntu.com|old-releases.ubuntu.com|g' /etc/apt/sources.list && \
-    sed -i 's|security.ubuntu.com|old-releases.ubuntu.com|g' /etc/apt/sources.list && \
-    apt-get update
+RUN printf "deb http://old-releases.ubuntu.com/ubuntu bionic main restricted universe multiverse\n" > /etc/apt/sources.list && \
+    printf "deb http://old-releases.ubuntu.com/ubuntu bionic-updates main restricted universe multiverse\n" >> /etc/apt/sources.list && \
+    printf "deb http://old-releases.ubuntu.com/ubuntu bionic-security main restricted universe multiverse\n" >> /etc/apt/sources.list
 
 # -------------------------
-# base tools for PHP 5.4 / 5.6 build
+# APT update fix for expired metadata
 # -------------------------
-RUN apt-get install -y \
+RUN apt-get -o Acquire::Check-Valid-Until=false update || true
+
+# -------------------------
+# base packages for PHP 5.6 / 5.4 builds
+# -------------------------
+RUN apt-get install -y --allow-unauthenticated \
     build-essential \
     autoconf \
     bison \
     re2c \
-    libxml2-dev \
-    libcurl4-openssl-dev \
-    libjpeg-dev \
-    libpng-dev \
-    libzip-dev \
-    libssl-dev \
-    libreadline-dev \
-    libicu-dev \
-    libonig-dev \
     wget \
     curl \
     git \
     unzip \
     tar \
     gzip \
+    libxml2-dev \
+    libcurl4-openssl-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libssl-dev \
+    libreadline-dev \
+    libicu-dev \
     nginx \
     && rm -rf /var/lib/apt/lists/*
 
