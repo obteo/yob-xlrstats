@@ -1,52 +1,97 @@
-FROM ubuntu:18.04
+FROM debian:bookworm-slim
+
+LABEL author="obteo" maintainer="obteo@live.com"
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV PHP_VERSION=5.6.40
+ENV PHP_VERSION=5.4.45
 
+# -----------------------------
+# Base deps + build tools
+# -----------------------------
 RUN apt-get update && apt-get install -y \
-    build-essential autoconf bison re2c pkg-config \
-    wget curl git unzip tar gzip ca-certificates \
-    libxml2-dev libcurl4-openssl-dev libjpeg-dev libpng-dev \
-    libssl-dev libreadline-dev libicu-dev libzip-dev libonig-dev \
-    libsqlite3-dev libxslt1-dev make \
+    build-essential \
+    autoconf \
+    bison \
+    re2c \
+    libxml2-dev \
+    libsqlite3-dev \
+    libcurl4-openssl-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libonig-dev \
+    libzip-dev \
+    libssl-dev \
+    libreadline-dev \
+    libicu-dev \
+    libxslt1-dev \
+    libmcrypt-dev \
+    wget \
+    curl \
+    git \
+    unzip \
+    ca-certificates \
+    nginx \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /home/container/tmp /home/container/www
-
-WORKDIR /home/container/tmp
-
-RUN wget https://museum.php.net/php5/php-${PHP_VERSION}.tar.gz && \
+# -----------------------------
+# Compile PHP 5.4
+# -----------------------------
+RUN cd /tmp && \
+    wget https://museum.php.net/php5/php-${PHP_VERSION}.tar.gz && \
     tar -xzf php-${PHP_VERSION}.tar.gz && \
     cd php-${PHP_VERSION} && \
-    export CFLAGS="-fcommon" && \
-    export CPPFLAGS="-fcommon" && \
     ./configure \
         --prefix=/usr/local/php \
         --with-config-file-path=/usr/local/php/etc \
         --enable-fpm \
-        --with-mysqli=mysqlnd \
-        --with-pdo-mysql=mysqlnd \
+        --with-fpm-user=www-data \
+        --with-fpm-group=www-data \
+        --with-mysql \
+        --with-mysqli \
+        --with-pdo-mysql \
         --with-curl \
         --with-openssl \
         --with-zlib \
+        --with-gd \
+        --with-jpeg-dir \
+        --with-png-dir \
         --enable-mbstring \
-        --enable-xml \
-        --enable-simplexml \
-        --enable-dom \
-        --enable-bcmath \
+        --enable-zip \
         --enable-soap \
         --enable-sockets \
-        --enable-zip \
-        --with-gd \
-        --with-xsl \
-        --with-readline && \
-    make -j1 && \
-    make install
+        --enable-exif \
+        --enable-ftp \
+        --enable-bcmath \
+        && make -j$(nproc) && make install && \
+    cp sapi/fpm/init.d.php-fpm /etc/init.d/php-fpm || true && \
+    rm -rf /tmp/php-${PHP_VERSION}*
 
-RUN mkdir -p /usr/local/php/etc
+# -----------------------------
+# Config PHP
+# -----------------------------
+RUN mkdir -p /usr/local/php/etc && \
+    cp /usr/local/php/etc/php-fpm.conf.default /usr/local/php/etc/php-fpm.conf || true
 
-RUN rm -rf /home/container/tmp
+# -----------------------------
+# Nginx config (basic)
+# -----------------------------
+RUN mkdir -p /etc/nginx/conf.d
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+
+# -----------------------------
+# User + workspace
+# -----------------------------
+RUN useradd -m -d /home/container container
 
 WORKDIR /home/container
 
-CMD ["/bin/bash"]
+# -----------------------------
+# Entrypoint
+# -----------------------------
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+STOPSIGNAL SIGTERM
+
+CMD ["/entrypoint.sh"]
