@@ -1,50 +1,21 @@
-FROM ubuntu:20.04
+FROM ubuntu:18.04
 
 ENV DEBIAN_FRONTEND=noninteractive
-
-# -------------------------
-# DEPENDENCIES (FIXED for PHP 5.6 compile)
-# -------------------------
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    autoconf \
-    bison \
-    re2c \
-    pkg-config \
-    wget \
-    curl \
-    git \
-    unzip \
-    tar \
-    gzip \
-    ca-certificates \
-    libxml2-dev \
-    libcurl4-openssl-dev \
-    libjpeg-dev \
-    libpng-dev \
-    libssl-dev \
-    libreadline-dev \
-    libicu-dev \
-    libzip-dev \
-    libonig-dev \
-    libsqlite3-dev \
-    libxslt1-dev \
-    && rm -rf /var/lib/apt/lists/*
-
-# -------------------------
-# WORKDIR
-# -------------------------
-RUN mkdir -p /home/container/tmp /home/container/www
-WORKDIR /home/container
-
-# -------------------------
-# PHP VERSION
-# -------------------------
 ENV PHP_VERSION=5.6.40
 
-# -------------------------
-# BUILD PHP 5.6
-# -------------------------
+RUN apt-get update && apt-get install -y \
+    build-essential autoconf bison re2c pkg-config \
+    wget curl git unzip tar gzip ca-certificates \
+    nginx \
+    libxml2-dev libcurl4-openssl-dev libjpeg-dev libpng-dev \
+    libssl-dev libreadline-dev libicu-dev libzip-dev libonig-dev \
+    libsqlite3-dev libxslt1-dev make \
+    && rm -rf /var/lib/apt/lists/*
+
+RUN mkdir -p /home/container/tmp /home/container/www /var/lib/nginx/body /run/nginx
+
+WORKDIR /home/container
+
 RUN cd /home/container/tmp && \
     wget https://museum.php.net/php5/php-${PHP_VERSION}.tar.gz && \
     tar -xzf php-${PHP_VERSION}.tar.gz && \
@@ -55,9 +26,9 @@ RUN cd /home/container/tmp && \
         --prefix=/usr/local/php \
         --with-config-file-path=/usr/local/php/etc \
         --enable-fpm \
+        --enable-mysqlnd \
         --with-mysqli=mysqlnd \
         --with-pdo-mysql=mysqlnd \
-        --with-mysql=mysqlnd \
         --with-curl \
         --with-openssl \
         --with-zlib \
@@ -72,17 +43,15 @@ RUN cd /home/container/tmp && \
         --with-gd \
         --with-jpeg-dir=/usr \
         --with-png-dir=/usr \
-        --with-xsl && \
-    make -j$(nproc) && \
+        --with-xsl \
+        --with-readline && \
+    make -j1 && \
     make install
 
-# -------------------------
-# PHP CONFIG
-# -------------------------
 RUN mkdir -p /usr/local/php/etc && \
-    cp /usr/local/php/etc/php-fpm.conf.default /usr/local/php/etc/php-fpm.conf || true
+    cp /usr/local/php/etc/php-fpm.conf.default /usr/local/php/etc/php-fpm.conf || true && \
+    cp /usr/local/php/etc/php-fpm.d/www.conf.default /usr/local/php/etc/php-fpm.d/www.conf || true
 
-# -------------------------
-# CLEANUP
-# -------------------------
 RUN rm -rf /home/container/tmp
+
+CMD ["/bin/bash"]
