@@ -1,8 +1,11 @@
 FROM centos:7
 
-LABEL author="Ym0t" maintainer="YmoT@tuta.com"
+RUN sed -i \
+    -e 's|mirrorlist=|#mirrorlist=|g' \
+    -e 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' \
+    /etc/yum.repos.d/CentOS-Base.repo
 
-ENV DEBIAN_FRONTEND=noninteractive
+RUN yum clean all && yum makecache fast
 
 RUN yum -y update && yum -y install \
     epel-release \
