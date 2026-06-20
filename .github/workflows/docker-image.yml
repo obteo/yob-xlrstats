@@ -26,29 +26,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Lowercase image name
-        run: echo "IMAGE_NAME_LC=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
-
-      # -------------------------
-      # Cosign install (FIXED)
-      # -------------------------
-      - name: Install cosign
-        if: github.event_name != 'pull_request'
-        uses: sigstore/cosign-installer@v3.7.0
-
-      - name: Verify cosign
-        if: github.event_name != 'pull_request'
-        run: cosign version
-
-      # -------------------------
-      # Buildx setup
-      # -------------------------
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
-      # -------------------------
-      # Login GHCR
-      # -------------------------
       - name: Log into GHCR
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v4
@@ -58,45 +38,23 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
 
       # -------------------------
-      # Metadata
+      # IMPORTANT: ONLY "latest"
       # -------------------------
       - name: Extract Docker metadata
         id: meta
         uses: docker/metadata-action@v6
         with:
-          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ghcr.io/${{ env.IMAGE_NAME }}
           tags: |
             latest
-            centos7
-            php5.4
-            ${{ github.sha }}
 
       # -------------------------
       # Build & Push
       # -------------------------
       - name: Build and push image
-        id: build
         uses: docker/build-push-action@v7
         with:
           context: .
           push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64,linux/arm64
           tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
-          cache-from: type=registry,ref=ghcr.io/${{ env.IMAGE_NAME_LC }}:buildcache
-          cache-to: type=registry,ref=ghcr.io/${{ env.IMAGE_NAME_LC }}:buildcache,mode=max
-
-      # -------------------------
-      # Sign images (FIXED SAFE LOOP)
-      # -------------------------
-      - name: Sign image with cosign
-        if: github.event_name != 'pull_request'
-        env:
-          TAGS: ${{ steps.meta.outputs.tags }}
-          DIGEST: ${{ steps.build.outputs.digest }}
-        run: |
-          echo "$TAGS" | tr ',' '\n' | while read tag; do
-            echo "Signing $tag@$DIGEST"
-            cosign sign --yes "$tag@$DIGEST"
-          done
