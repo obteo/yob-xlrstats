@@ -11,9 +11,9 @@ RUN apt-get update && apt-get install -y \
     libsqlite3-dev libxslt1-dev make \
     && rm -rf /var/lib/apt/lists/*
 
-RUN mkdir -p /tmp/phpbuild
+RUN mkdir -p /home/container/tmp /home/container/www
 
-WORKDIR /tmp/phpbuild
+WORKDIR /home/container/tmp
 
 RUN wget https://museum.php.net/php5/php-${PHP_VERSION}.tar.gz && \
     tar -xzf php-${PHP_VERSION}.tar.gz && \
@@ -45,6 +45,8 @@ RUN wget https://museum.php.net/php5/php-${PHP_VERSION}.tar.gz && \
 
 RUN mkdir -p /usr/local/php/etc
 
-RUN rm -rf /tmp/phpbuild
+RUN rm -rf /home/container/tmp
+
+WORKDIR /home/container
 
 CMD ["/bin/bash"]
