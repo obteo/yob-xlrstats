@@ -1,43 +1,49 @@
 FROM ubuntu:18.04
 
 ENV DEBIAN_FRONTEND=noninteractive
-ENV TZ=UTC
 
 # -------------------------
-# FORCE stable old-releases repo (clean override)
+# FORCE stable repos (no sed, no guess)
 # -------------------------
 RUN printf "deb http://old-releases.ubuntu.com/ubuntu bionic main restricted universe multiverse\n" > /etc/apt/sources.list && \
     printf "deb http://old-releases.ubuntu.com/ubuntu bionic-updates main restricted universe multiverse\n" >> /etc/apt/sources.list && \
     printf "deb http://old-releases.ubuntu.com/ubuntu bionic-security main restricted universe multiverse\n" >> /etc/apt/sources.list
 
 # -------------------------
-# APT update fix for expired metadata
+# FIX APT metadata (CRUCIAL)
 # -------------------------
-RUN apt-get -o Acquire::Check-Valid-Until=false update || true
+RUN apt-get clean && \
+    apt-get -o Acquire::Check-Valid-Until=false update || true
 
 # -------------------------
-# base packages for PHP 5.6 / 5.4 builds
+# install step SPLITTED (IMPORTANT for buildx stability)
 # -------------------------
+RUN apt-get install -y --allow-unauthenticated \
+    ca-certificates \
+    curl \
+    wget \
+    git \
+    unzip \
+    tar \
+    gzip
+
 RUN apt-get install -y --allow-unauthenticated \
     build-essential \
     autoconf \
     bison \
-    re2c \
-    wget \
-    curl \
-    git \
-    unzip \
-    tar \
-    gzip \
+    re2c
+
+RUN apt-get install -y --allow-unauthenticated \
     libxml2-dev \
     libcurl4-openssl-dev \
     libjpeg-dev \
     libpng-dev \
     libssl-dev \
     libreadline-dev \
-    libicu-dev \
-    nginx \
-    && rm -rf /var/lib/apt/lists/*
+    libicu-dev
+
+RUN apt-get install -y --allow-unauthenticated nginx && \
+    rm -rf /var/lib/apt/lists/*
 
 # -------------------------
 # working dirs (Pterodactyl safe)
