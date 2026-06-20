@@ -1,118 +1,100 @@
-FROM centos:7
+FROM debian:bookworm-slim
 
-RUN sed -i \
-    -e 's|mirrorlist=|#mirrorlist=|g' \
-    -e 's|#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' \
-    /etc/yum.repos.d/CentOS-Base.repo
+LABEL author="Ym0t" maintainer="YmoT@tuta.com"
 
-RUN yum clean all && yum makecache fast
+ENV DEBIAN_FRONTEND=noninteractive
+ENV PHP_VERSION=5.4.45
 
-RUN yum -y update && yum -y install \
-    epel-release \
-    yum-utils \
+# -----------------------------
+# Base deps + build tools
+# -----------------------------
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    autoconf \
+    bison \
+    re2c \
+    libxml2-dev \
+    libsqlite3-dev \
+    libcurl4-openssl-dev \
+    libjpeg-dev \
+    libpng-dev \
+    libonig-dev \
+    libzip-dev \
+    libssl-dev \
+    libreadline-dev \
+    libicu-dev \
+    libxslt1-dev \
+    libmcrypt-dev \
     wget \
     curl \
     git \
     unzip \
     ca-certificates \
-    openssl \
-    tar \
-    gzip \
-    && yum clean all
+    nginx \
+    && rm -rf /var/lib/apt/lists/*
 
-# -------------------------
-# NGINX (official repo)
-# -------------------------
-RUN cat <<EOF > /etc/yum.repos.d/nginx.repo
-[nginx]
-name=nginx repo
-baseurl=https://nginx.org/packages/centos/7/\$basearch/
-gpgcheck=0
-enabled=1
-EOF
+# -----------------------------
+# Compile PHP 5.4
+# -----------------------------
+RUN cd /tmp && \
+    wget https://museum.php.net/php5/php-${PHP_VERSION}.tar.gz && \
+    tar -xzf php-${PHP_VERSION}.tar.gz && \
+    cd php-${PHP_VERSION} && \
+    ./configure \
+        --prefix=/usr/local/php \
+        --with-config-file-path=/usr/local/php/etc \
+        --enable-fpm \
+        --with-fpm-user=www-data \
+        --with-fpm-group=www-data \
+        --with-mysql \
+        --with-mysqli \
+        --with-pdo-mysql \
+        --with-curl \
+        --with-openssl \
+        --with-zlib \
+        --with-gd \
+        --with-jpeg-dir \
+        --with-png-dir \
+        --enable-mbstring \
+        --enable-zip \
+        --enable-soap \
+        --enable-sockets \
+        --enable-exif \
+        --enable-ftp \
+        --enable-bcmath \
+        && make -j$(nproc) && make install && \
+    cp sapi/fpm/init.d.php-fpm /etc/init.d/php-fpm || true && \
+    rm -rf /tmp/php-${PHP_VERSION}*
 
-RUN yum -y install nginx && yum clean all
+# -----------------------------
+# Config PHP
+# -----------------------------
+RUN mkdir -p /usr/local/php/etc && \
+    cp /usr/local/php/etc/php-fpm.conf.default /usr/local/php/etc/php-fpm.conf || true
 
-# -------------------------
-# PHP 5.4 (CentOS 7 default)
-# -------------------------
-RUN yum -y install \
-    php \
-    php-fpm \
-    php-cli \
-    php-common \
-    php-mysql \
-    php-pdo \
-    php-gd \
-    php-mbstring \
-    php-xml \
-    php-curl \
-    php-ldap \
-    php-mcrypt \
-    php-json \
-    php-opcache || true \
-    && yum clean all
+# -----------------------------
+# Nginx config (basic)
+# -----------------------------
+RUN mkdir -p /etc/nginx/conf.d
 
-# -------------------------
-# Cloudflared (multi-arch)
-# -------------------------
-RUN ARCH=$(uname -m); \
-    if [ "$ARCH" = "x86_64" ]; then \
-        URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64.rpm"; \
-    elif [ "$ARCH" = "aarch64" ]; then \
-        URL="https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.rpm"; \
-    else \
-        echo "Unsupported architecture: $ARCH" && exit 1; \
-    fi; \
-    curl -L $URL -o /tmp/cloudflared.rpm && \
-    yum -y localinstall /tmp/cloudflared.rpm && \
-    rm -f /tmp/cloudflared.rpm
+COPY nginx.conf /etc/nginx/conf.d/default.conf
 
-# -------------------------
-# Composer
-# -------------------------
-RUN curl -sS https://getcomposer.org/installer | php && \
-    mv composer.phar /usr/local/bin/composer && \
-    chmod +x /usr/local/bin/composer
-
-# -------------------------
-# ionCube (best-effort PHP 5.x compatible)
-# -------------------------
-RUN ARCH=$(uname -m); \
-    if [ "$ARCH" = "x86_64" ]; then \
-        IONCUBE_ARCH="x86-64"; \
-    elif [ "$ARCH" = "aarch64" ]; then \
-        IONCUBE_ARCH="aarch64"; \
-    else \
-        echo "ionCube skipped"; exit 0; \
-    fi; \
-    cd /tmp && \
-    curl -L -o ioncube.tar.gz \
-    "https://downloads.ioncube.com/loader_downloads/ioncube_loaders_lin_${IONCUBE_ARCH}.tar.gz" || exit 0; \
-    tar xzf ioncube.tar.gz || exit 0; \
-    PHP_EXT=$(find /usr/lib64/php/modules -type f 2>/dev/null | head -1); \
-    if [ -d /usr/lib64/php/modules ]; then \
-        cp ioncube/ioncube_loader_lin_5.4.so /usr/lib64/php/modules/ || true; \
-        echo "zend_extension=/usr/lib64/php/modules/ioncube_loader_lin_5.4.so" > /etc/php.d/00-ioncube.ini || true; \
-    fi; \
-    rm -rf /tmp/ioncube*
-
-# -------------------------
-# User container
-# -------------------------
-RUN useradd -m -d /home/container -s /bin/bash container
-
-ENV USER=container
-ENV HOME=/home/container
+# -----------------------------
+# User + workspace
+# -----------------------------
+RUN useradd -m -d /home/container container
 
 WORKDIR /home/container
 
-# -------------------------
+# -----------------------------
 # Entrypoint
-# -------------------------
-COPY ./entrypoint.sh /entrypoint.sh
+# -----------------------------
+COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+STOPSIGNAL SIGTERM
+
+CMD ["/entrypoint.sh"]
 STOPSIGNAL SIGINT
 
 CMD ["/entrypoint.sh"]
