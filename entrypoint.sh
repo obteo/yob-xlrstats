@@ -1,9 +1,9 @@
 #!/bin/bash
-cd /home/container
 
-# Replace Startup Variables
-MODIFIED_STARTUP=$(echo -e ${STARTUP} | sed -e 's/{{/${/g' -e 's/}}/}/g')
-echo -e ":/home/container$ ${MODIFIED_STARTUP}"
+echo "[START] Launching PHP 5.4 + Nginx stack"
 
-# Run the Server
-eval ${MODIFIED_STARTUP}
+# start php-fpm
+/usr/local/php/sbin/php-fpm
+
+# start nginx
+nginx -g "daemon off;"
