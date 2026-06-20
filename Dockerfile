@@ -1,19 +1,28 @@
-FROM debian:bookworm-slim
-
-LABEL author="Ym0t" maintainer="YmoT@tuta.com"
+FROM debian:buster-slim
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV PHP_VERSION=5.4.45
 ENV TMPDIR=/home/container/tmp
 
-# -------------------------
-# Base deps
-# -------------------------
 RUN apt-get update && apt-get install -y \
-    build-essential autoconf bison re2c \
-    libxml2-dev libcurl4-openssl-dev libjpeg-dev libpng-dev \
-    libzip-dev libssl-dev libreadline-dev libicu-dev \
-    wget curl git unzip ca-certificates nginx \
+    build-essential \
+    autoconf \
+    bison \
+    re2c \
+    wget \
+    curl \
+    git \
+    unzip \
+    ca-certificates \
+    libxml2-dev \
+    libcurl4-openssl-dev \
+    libjpeg62-turbo-dev \
+    libpng-dev \
+    libzip-dev \
+    libssl-dev \
+    libreadline-dev \
+    libicu-dev \
+    nginx \
     && rm -rf /var/lib/apt/lists/*
 
 # -------------------------
