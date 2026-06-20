@@ -3,33 +3,32 @@ FROM ubuntu:20.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 # -------------------------
-# SYSTEM DEPENDENCIES
+# DEPENDENCIES (FIXED for PHP 5.6 compile)
 # -------------------------
 RUN apt-get update && apt-get install -y \
-    ca-certificates \
-    curl \
-    wget \
-    git \
-    unzip \
-    tar \
-    gzip \
     build-essential \
     autoconf \
     bison \
     re2c \
+    pkg-config \
+    wget \
+    curl \
+    git \
+    unzip \
+    tar \
+    gzip \
+    ca-certificates \
     libxml2-dev \
     libcurl4-openssl-dev \
     libjpeg-dev \
     libpng-dev \
-    libzip-dev \
     libssl-dev \
     libreadline-dev \
     libicu-dev \
+    libzip-dev \
     libonig-dev \
     libsqlite3-dev \
-    nginx \
-    make \
-    pkg-config \
+    libxslt1-dev \
     && rm -rf /var/lib/apt/lists/*
 
 # -------------------------
@@ -39,21 +38,26 @@ RUN mkdir -p /home/container/tmp /home/container/www
 WORKDIR /home/container
 
 # -------------------------
-# PHP 5.6 SOURCE
+# PHP VERSION
 # -------------------------
 ENV PHP_VERSION=5.6.40
 
+# -------------------------
+# BUILD PHP 5.6
+# -------------------------
 RUN cd /home/container/tmp && \
     wget https://museum.php.net/php5/php-${PHP_VERSION}.tar.gz && \
     tar -xzf php-${PHP_VERSION}.tar.gz && \
     cd php-${PHP_VERSION} && \
+    export CFLAGS="-fcommon" && \
+    export CPPFLAGS="-fcommon" && \
     ./configure \
         --prefix=/usr/local/php \
         --with-config-file-path=/usr/local/php/etc \
         --enable-fpm \
-        --with-mysql=mysqlnd \
         --with-mysqli=mysqlnd \
         --with-pdo-mysql=mysqlnd \
+        --with-mysql=mysqlnd \
         --with-curl \
         --with-openssl \
         --with-zlib \
@@ -67,7 +71,8 @@ RUN cd /home/container/tmp && \
         --enable-zip \
         --with-gd \
         --with-jpeg-dir=/usr \
-        --with-png-dir=/usr && \
+        --with-png-dir=/usr \
+        --with-xsl && \
     make -j$(nproc) && \
     make install
 
