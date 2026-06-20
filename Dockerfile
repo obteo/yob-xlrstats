@@ -1,55 +1,83 @@
-FROM ubuntu:18.04
+FROM ubuntu:20.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
 # -------------------------
-# FORCE stable repos (no sed, no guess)
+# SYSTEM DEPENDENCIES
 # -------------------------
-RUN printf "deb http://old-releases.ubuntu.com/ubuntu bionic main restricted universe multiverse\n" > /etc/apt/sources.list && \
-    printf "deb http://old-releases.ubuntu.com/ubuntu bionic-updates main restricted universe multiverse\n" >> /etc/apt/sources.list && \
-    printf "deb http://old-releases.ubuntu.com/ubuntu bionic-security main restricted universe multiverse\n" >> /etc/apt/sources.list
-
-# -------------------------
-# FIX APT metadata (CRUCIAL)
-# -------------------------
-RUN apt-get clean && \
-    apt-get -o Acquire::Check-Valid-Until=false update || true
-
-# -------------------------
-# install step SPLITTED (IMPORTANT for buildx stability)
-# -------------------------
-RUN apt-get install -y --allow-unauthenticated \
+RUN apt-get update && apt-get install -y \
     ca-certificates \
     curl \
     wget \
     git \
     unzip \
     tar \
-    gzip
-
-RUN apt-get install -y --allow-unauthenticated \
+    gzip \
     build-essential \
     autoconf \
     bison \
-    re2c
-
-RUN apt-get install -y --allow-unauthenticated \
+    re2c \
     libxml2-dev \
     libcurl4-openssl-dev \
     libjpeg-dev \
     libpng-dev \
+    libzip-dev \
     libssl-dev \
     libreadline-dev \
-    libicu-dev
-
-RUN apt-get install -y --allow-unauthenticated nginx && \
-    rm -rf /var/lib/apt/lists/*
+    libicu-dev \
+    libonig-dev \
+    libsqlite3-dev \
+    nginx \
+    make \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
 
 # -------------------------
-# working dirs (Pterodactyl safe)
+# WORKDIR
 # -------------------------
 RUN mkdir -p /home/container/tmp /home/container/www
-
 WORKDIR /home/container
 
-CMD ["/bin/bash"]
+# -------------------------
+# PHP 5.6 SOURCE
+# -------------------------
+ENV PHP_VERSION=5.6.40
+
+RUN cd /home/container/tmp && \
+    wget https://museum.php.net/php5/php-${PHP_VERSION}.tar.gz && \
+    tar -xzf php-${PHP_VERSION}.tar.gz && \
+    cd php-${PHP_VERSION} && \
+    ./configure \
+        --prefix=/usr/local/php \
+        --with-config-file-path=/usr/local/php/etc \
+        --enable-fpm \
+        --with-mysql=mysqlnd \
+        --with-mysqli=mysqlnd \
+        --with-pdo-mysql=mysqlnd \
+        --with-curl \
+        --with-openssl \
+        --with-zlib \
+        --enable-mbstring \
+        --enable-xml \
+        --enable-simplexml \
+        --enable-dom \
+        --enable-bcmath \
+        --enable-soap \
+        --enable-sockets \
+        --enable-zip \
+        --with-gd \
+        --with-jpeg-dir=/usr \
+        --with-png-dir=/usr && \
+    make -j$(nproc) && \
+    make install
+
+# -------------------------
+# PHP CONFIG
+# -------------------------
+RUN mkdir -p /usr/local/php/etc && \
+    cp /usr/local/php/etc/php-fpm.conf.default /usr/local/php/etc/php-fpm.conf || true
+
+# -------------------------
+# CLEANUP
+# -------------------------
+RUN rm -rf /home/container/tmp
